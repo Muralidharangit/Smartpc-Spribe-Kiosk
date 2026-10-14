@@ -1,0 +1,118 @@
+================================================================================
+BETTING KIOSK (TAURI DESKTOP) — PRODUCTION BUILD VERIFICATION REPORT
+================================================================================
+Generated at: 2026-10-14 22:48:00 IST
+Product Name: Betting Kiosk
+Binary Name: betting-kiosk
+Package Identifier: com.betwise.kiosk
+Version: 0.1.0
+
+--------------------------------------------------------------------------------
+1. ROOT CAUSE ANALYSIS & PERMANENT RESOLUTION
+--------------------------------------------------------------------------------
+ROOT CAUSE:
+In the development environment (npm run tauri:dev), the app ran through the Vite
+dev server at http://localhost:5175 where external CDN stylesheets and scripts:
+  - Bootstrap 5 CSS & Icons CDN (jsdelivr)
+  - FontAwesome 6 Free CSS & WebFonts CDN (cdnjs)
+  - Google Fonts (fonts.googleapis.com)
+  - Bootstrap JS bundle with Subresource Integrity (SRI) hashes
+were loaded over HTTP with local browser CORS context.
+
+However, in the installed production desktop application (Tauri custom scheme
+tauri://localhost on Linux WebKitGTK and http://tauri.localhost on Windows):
+1. Subresource Integrity (SRI) & CORS Blocking:
+   The <link> and <script> tags for Bootstrap CSS and JS in index.html had
+   hardcoded integrity="sha384-..." attributes with crossorigin="anonymous".
+   WebKitGTK evaluates SRI checks strictly against custom scheme origins. When
+   the origin header or digest validation failed on tauri://localhost, WebKitGTK
+   flatly blocked the stylesheet, stripping all grid and layout utilities.
+2. Network Dependency on Launch:
+   A dedicated kiosk desktop application frequently boots up without internet
+   or with captive/firewalled connections. When external CDN stylesheets and
+   Google Fonts fail to connect, all layouts collapse, icons turn into empty
+   boxes, and typography reverts to generic serif/sans-serif fallbacks.
+3. Missing Local Relative Base & Missing Bundle Targets:
+   Vite's default base was '/', which caused absolute path resolution instead of
+   clean relative path resolution for embedded assets. Additionally, "nsis" was
+   missing from tauri.conf.json bundle targets.
+
+PERMANENT FIX APPLIED:
+1. Replaced all external CDN dependencies with locally bundled NPM packages:
+   - 'bootstrap' (5.3.x)
+   - 'bootstrap-icons' (1.11.x)
+   - '@fortawesome/fontawesome-free' (6.x)
+   - '@fontsource/inter', '@fontsource/orbitron', '@fontsource/outfit',
+     '@fontsource/rajdhani', '@fontsource/roboto-mono'
+2. Imported all styles and fonts directly into src/main.tsx in the correct cascade
+   order before custom stylesheets. Vite now packages every single font file
+   (.woff2/.woff) and icon asset directly into dist/assets/, providing 100% offline
+   reliability with zero network latency and zero SRI/CORS failures.
+3. Cleaned index.html of all brittle CDN links and SRI script tags.
+4. Set base: './' in vite.config.ts to ensure robust relative path asset resolution
+   across all WebView environments.
+5. Configured tauri.conf.json bundle targets to include "nsis" and added complete
+   NSIS installer settings for Windows cross-compilation alongside Linux "deb".
+6. Updated CSP in tauri.conf.json to explicitly whitelist frame-src and media-src.
+7. Created .env.production matching .env so production scripts execute cleanly.
+
+--------------------------------------------------------------------------------
+2. GENERATED PRODUCTION INSTALLERS (release-builds/)
+--------------------------------------------------------------------------------
+Linux (.deb):
+  Filename: Betting Kiosk_0.1.0_amd64.deb
+  Path: release-builds/Betting Kiosk_0.1.0_amd64.deb
+  Size: 48 MB (49,678,284 bytes)
+  SHA256: 34eda4e5c4d94588030c4d581a01fc20b034d056919b3249315549c9c42b63c3
+  Architecture: amd64 (x86_64)
+  Target: Ubuntu / Debian Linux
+
+Windows Installer (NSIS .exe):
+  Filename: Betting Kiosk_0.1.0_x64-setup.exe
+  Path: release-builds/Betting Kiosk_0.1.0_x64-setup.exe
+  Size: 47 MB (49,159,850 bytes)
+  SHA256: 06bbdef064f140598a6c46a1ebed8e0f11442ca90f8ac54cf267682cdf3610fa
+  Target: Windows 10 / 11 64-bit (x86_64-pc-windows-msvc)
+  Bundle Type: NSIS Self-Extracting Installer
+
+Windows Standalone Executable (.exe):
+  Filename: betting-kiosk.exe
+  Path: release-builds/betting-kiosk.exe
+  Size: 53 MB (54,821,376 bytes)
+  SHA256: d5d8b8b01f0ac210c2dbee35fecd547d974a2b284f73e4ad2befbbb1df0d1cc8
+  Target: Windows 64-bit Standalone Portable Binary
+
+--------------------------------------------------------------------------------
+3. INSTALLATION & UPGRADE INSTRUCTIONS
+--------------------------------------------------------------------------------
+Ubuntu / Debian Linux:
+  Run the following command to install or upgrade the package:
+    sudo dpkg -i "release-builds/Betting Kiosk_0.1.0_amd64.deb"
+
+  If any system dependencies are missing, resolve them with:
+    sudo apt-get install -f
+
+  Launch command:
+    betting-kiosk
+    (or launch 'Betting Kiosk' from the Application Menu / Dash)
+
+Windows:
+  Run 'Betting Kiosk_0.1.0_x64-setup.exe' on any 64-bit Windows machine.
+  The NSIS installer will guide through standard installation and create
+  Desktop and Start Menu shortcuts.
+  Alternatively, 'betting-kiosk.exe' can be launched directly as a portable app.
+
+--------------------------------------------------------------------------------
+4. VERIFICATION CHECKLIST
+--------------------------------------------------------------------------------
+[x] Development version tested and fully operational
+[x] Production frontend build succeeds with zero errors (Vite + TypeScript)
+[x] All CSS, fonts, and icons bundled locally (100% offline parity)
+[x] Brittle CDN links and SRI integrity attributes removed
+[x] Relative base ('./') configured in vite.config.ts
+[x] CSP enhanced to allow frame-src and media-src for games
+[x] Linux .deb package cleanly built and verified
+[x] Windows NSIS installer (.exe) cleanly built via cargo-xwin + makensis
+[x] Hardware integration and bill-acceptor configuration preserved
+[x] Production installers copied into release-builds/ with hashes verified
+================================================================================
